@@ -1,7 +1,7 @@
 import { prisma } from '@/lib/db';
 import { dockerManager } from './docker-manager';
 
-interface AppMetrics {
+interface AgentMetrics {
   cpu: number;
   memory: number;
   memoryLimit: number;
@@ -11,36 +11,36 @@ interface AppMetrics {
 }
 
 interface AggregatedMetrics {
-  totalApps: number;
-  runningApps: number;
-  stoppedApps: number;
-  errorApps: number;
+  totalAgents: number;
+  runningAgents: number;
+  stoppedAgents: number;
+  errorAgents: number;
   totalCpu: number;
   totalMemory: number;
   averageCpu: number;
   averageMemory: number;
 }
 
-interface ProjectMetrics {
-  projectId: string;
-  projectName: string;
-  appCount: number;
+interface CloudMetrics {
+  cloudId: string;
+  cloudName: string;
+  agentCount: number;
   runningCount: number;
   totalCpu: number;
   totalMemory: number;
 }
 
 export class MetricsCollector {
-  async collectAppMetrics(appId: string): Promise<AppMetrics | null> {
-    const app = await prisma.app.findUnique({
-      where: { id: appId },
+  async collectAgentMetrics(agentId: string): Promise<AgentMetrics | null> {
+    const agent = await prisma.agent.findUnique({
+      where: { id: agentId },
     });
 
-    if (!app || !app.containerId || app.status !== 'running') {
+    if (!agent || !agent.containerId || agent.status !== 'running') {
       return null;
     }
 
-    const stats = await dockerManager.getContainerStats(app.containerId);
+    const stats = await dockerManager.getContainerStats(agent.containerId);
 
     return {
       ...stats,
@@ -49,67 +49,67 @@ export class MetricsCollector {
   }
 
   async collectUserMetrics(userId: string): Promise<AggregatedMetrics> {
-    const apps = await prisma.app.findMany({
+    const agents = await prisma.agent.findMany({
       where: {
-        project: { userId },
+        cloud: { userId },
       },
     });
 
-    const runningApps = apps.filter((a) => a.status === 'running');
-    const stoppedApps = apps.filter((a) => a.status === 'stopped');
-    const errorApps = apps.filter((a) => a.status === 'error');
+    const runningAgents = agents.filter((a) => a.status === 'running');
+    const stoppedAgents = agents.filter((a) => a.status === 'stopped');
+    const errorAgents = agents.filter((a) => a.status === 'error');
 
     let totalCpu = 0;
     let totalMemory = 0;
 
-    for (const app of runningApps) {
-      if (app.containerId) {
-        const stats = await dockerManager.getContainerStats(app.containerId);
+    for (const agent of runningAgents) {
+      if (agent.containerId) {
+        const stats = await dockerManager.getContainerStats(agent.containerId);
         totalCpu += stats.cpu;
         totalMemory += stats.memory;
       }
     }
 
     return {
-      totalApps: apps.length,
-      runningApps: runningApps.length,
-      stoppedApps: stoppedApps.length,
-      errorApps: errorApps.length,
+      totalAgents: agents.length,
+      runningAgents: runningAgents.length,
+      stoppedAgents: stoppedAgents.length,
+      errorAgents: errorAgents.length,
       totalCpu,
       totalMemory,
-      averageCpu: runningApps.length > 0 ? totalCpu / runningApps.length : 0,
-      averageMemory: runningApps.length > 0 ? totalMemory / runningApps.length : 0,
+      averageCpu: runningAgents.length > 0 ? totalCpu / runningAgents.length : 0,
+      averageMemory: runningAgents.length > 0 ? totalMemory / runningAgents.length : 0,
     };
   }
 
-  async collectProjectMetrics(userId: string): Promise<ProjectMetrics[]> {
-    const projects = await prisma.project.findMany({
+  async collectCloudMetrics(userId: string): Promise<CloudMetrics[]> {
+    const clouds = await prisma.cloud.findMany({
       where: { userId },
       include: {
-        apps: true,
+        agents: true,
       },
     });
 
-    const metrics: ProjectMetrics[] = [];
+    const metrics: CloudMetrics[] = [];
 
-    for (const project of projects) {
-      const runningApps = project.apps.filter((a) => a.status === 'running');
+    for (const cloud of clouds) {
+      const runningAgents = cloud.agents.filter((a) => a.status === 'running');
       let totalCpu = 0;
       let totalMemory = 0;
 
-      for (const app of runningApps) {
-        if (app.containerId) {
-          const stats = await dockerManager.getContainerStats(app.containerId);
+      for (const agent of runningAgents) {
+        if (agent.containerId) {
+          const stats = await dockerManager.getContainerStats(agent.containerId);
           totalCpu += stats.cpu;
           totalMemory += stats.memory;
         }
       }
 
       metrics.push({
-        projectId: project.id,
-        projectName: project.name,
-        appCount: project.apps.length,
-        runningCount: runningApps.length,
+        cloudId: cloud.id,
+        cloudName: cloud.name,
+        agentCount: cloud.agents.length,
+        runningCount: runningAgents.length,
         totalCpu,
         totalMemory,
       });
@@ -118,20 +118,20 @@ export class MetricsCollector {
     return metrics;
   }
 
-  async getRealtimeMetrics(appId: string): Promise<AsyncGenerator<AppMetrics>> {
-    const app = await prisma.app.findUnique({
-      where: { id: appId },
+  async getRealtimeMetrics(agentId: string): Promise<AsyncGenerator<AgentMetrics>> {
+    const agent = await prisma.agent.findUnique({
+      where: { id: agentId },
     });
 
-    if (!app || !app.containerId) {
-      throw new Error('App not found or not running');
+    if (!agent || !agent.containerId) {
+      throw new Error('Agent not found or not running');
     }
 
     const self = this;
 
     return (async function* () {
       while (true) {
-        const metrics = await self.collectAppMetrics(appId);
+        const metrics = await self.collectAgentMetrics(agentId);
         if (metrics) {
           yield metrics;
         }

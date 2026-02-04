@@ -4,9 +4,10 @@ import { StatsCards } from '@/components/dashboard/stats-cards';
 import { AgentsList } from '@/components/dashboard/agents-list';
 import { ChainsList } from '@/components/dashboard/chains-list';
 import { SecurityStatus } from '@/components/dashboard/security-status';
-import { RecentActivity } from '@/components/dashboard/recent-activity';
+import { LiveActivity } from '@/components/dashboard/live-activity';
+import { ConnectedChannels } from '@/components/dashboard/connected-channels';
 import Link from 'next/link';
-import { Plus } from 'lucide-react';
+import { Plus, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 export default async function DashboardPage() {
@@ -18,11 +19,33 @@ export default async function DashboardPage() {
 
   const userId = session.user.id;
 
-  // Fetch all data for iClaud dashboard with error handling
+  // Fetch all data
   let user = null;
   let cloudsCount = 0;
-  let agentsData: Awaited<ReturnType<typeof prisma.agent.findMany>> = [];
-  let chainsData: Awaited<ReturnType<typeof prisma.chain.findMany>> = [];
+  let agentsData: Array<{
+    id: string;
+    name: string;
+    description: string | null;
+    status: string;
+    runtime: string;
+    endpoint: string | null;
+    totalCalls: number;
+    avgResponse: number;
+    cloud: { name: string; region: string };
+  }> = [];
+  let chainsData: Array<{
+    id: string;
+    name: string;
+    description: string | null;
+    status: string;
+    executions: number;
+    avgDuration: number;
+    lastRunAt: Date | null;
+    agents: Array<{
+      order: number;
+      agent: { id: string; name: string };
+    }>;
+  }> = [];
   let securityEvents: Awaited<ReturnType<typeof prisma.securityEvent.findMany>> = [];
 
   try {
@@ -64,6 +87,16 @@ export default async function DashboardPage() {
   const activeChains = safeChainsData.filter((c) => c.status === 'active').length;
   const blockedThreats = safeSecurityEvents.filter((e) => e.blocked).length;
 
+  // Calculate extended metrics
+  const totalApiCalls = safeAgentsData.reduce((acc, a) => acc + a.totalCalls, 0);
+  const avgResponseTime = safeAgentsData.length > 0
+    ? safeAgentsData.reduce((acc, a) => acc + a.avgResponse, 0) / safeAgentsData.length
+    : 0;
+  const chainExecutions = safeChainsData.reduce((acc, c) => acc + c.executions, 0);
+  const avgChainDuration = safeChainsData.length > 0
+    ? safeChainsData.reduce((acc, c) => acc + c.avgDuration, 0) / safeChainsData.length
+    : 0;
+
   const stats = {
     clouds: cloudsCount || 0,
     agents: safeAgentsData.length,
@@ -71,58 +104,20 @@ export default async function DashboardPage() {
     chains: safeChainsData.length,
     activeChains,
     credits: user?.credits || 0,
+    totalApiCalls,
+    avgResponseTime,
+    chainExecutions,
+    avgChainDuration,
   };
-
-  // Create recent activity from various sources
-  const activities = [
-    ...safeAgentsData
-      .filter((a) => a.status === 'running')
-      .slice(0, 2)
-      .map((agent) => ({
-        id: `agent-${agent.id}`,
-        type: 'agent_deployed' as const,
-        message: `${agent.name} deployed to ${agent.cloud.region}`,
-        timestamp: agent.updatedAt,
-        metadata: { agentName: agent.name },
-      })),
-    ...safeAgentsData
-      .filter((a) => a.status === 'deploying')
-      .map((agent) => ({
-        id: `building-${agent.id}`,
-        type: 'agent_building' as const,
-        message: `${agent.name} deployment in progress`,
-        timestamp: agent.updatedAt,
-        metadata: { agentName: agent.name },
-      })),
-    ...safeChainsData
-      .filter((c) => c.lastRunAt)
-      .slice(0, 2)
-      .map((chain) => ({
-        id: `chain-${chain.id}`,
-        type: 'chain_executed' as const,
-        message: `${chain.name} executed successfully`,
-        timestamp: chain.lastRunAt!,
-        metadata: { chainName: chain.name },
-      })),
-    ...safeSecurityEvents
-      .filter((e) => e.blocked)
-      .slice(0, 2)
-      .map((event) => ({
-        id: `security-${event.id}`,
-        type: 'security_event' as const,
-        message: event.description,
-        timestamp: event.createdAt,
-        metadata: { severity: event.severity },
-      })),
-  ].sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime()).slice(0, 5);
 
   return (
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold tracking-tight">
+          <h2 className="text-2xl font-bold tracking-tight flex items-center gap-2">
             Welcome back{user?.name ? `, ${user.name.split(' ')[0]}` : ''}
+            <Sparkles className="h-5 w-5 text-[#ffcc00]" />
           </h2>
           <p className="text-muted-foreground">
             Your AI agent infrastructure at a glance
@@ -142,26 +137,20 @@ export default async function DashboardPage() {
       {/* Stats Cards */}
       <StatsCards stats={stats} />
 
-      {/* Main Grid */}
-      <div className="grid gap-6 lg:grid-cols-3">
-        {/* Agents List - Takes 2 columns */}
-        <div className="lg:col-span-2">
+      {/* Main Content Grid */}
+      <div className="grid gap-6 lg:grid-cols-12">
+        {/* Left Column - Agents (8 cols) */}
+        <div className="lg:col-span-8 space-y-6">
           <AgentsList agents={safeAgentsData} />
+          <ChainsList chains={safeChainsData} />
         </div>
 
-        {/* Security Status */}
-        <div>
+        {/* Right Column - Activity & Channels (4 cols) */}
+        <div className="lg:col-span-4 space-y-6">
+          <LiveActivity />
+          <ConnectedChannels />
           <SecurityStatus events={safeSecurityEvents} totalBlocked={blockedThreats} />
         </div>
-      </div>
-
-      {/* Secondary Grid */}
-      <div className="grid gap-6 md:grid-cols-2">
-        {/* Chains */}
-        <ChainsList chains={safeChainsData} />
-
-        {/* Activity */}
-        <RecentActivity activities={activities} />
       </div>
     </div>
   );
