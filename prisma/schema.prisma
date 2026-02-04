@@ -1,0 +1,152 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  name          String?
+  password      String
+  avatarUrl     String?
+  credits       Float     @default(10.0)
+  plan          String    @default("free")
+  apiKey        String    @unique @default(cuid())
+  clouds        Cloud[]
+  chains        Chain[]
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([email])
+  @@index([apiKey])
+}
+
+model Cloud {
+  id          String      @id @default(cuid())
+  name        String
+  region      String      @default("us-east-1")
+  status      String      @default("active")
+  userId      String
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  agents      Agent[]
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  @@unique([userId, name])
+  @@index([userId])
+}
+
+model Agent {
+  id            String        @id @default(cuid())
+  name          String
+  description   String?
+  status        String        @default("stopped")
+  runtime       String        @default("python")
+  cloudId       String
+  cloud         Cloud         @relation(fields: [cloudId], references: [id], onDelete: Cascade)
+
+  // Source
+  sourceType    String        @default("upload")
+  gitUrl        String?
+  gitBranch     String        @default("main")
+
+  // Config
+  envVars       String?
+  entrypoint    String?
+  port          Int           @default(8000)
+
+  // Resources
+  cpu           String        @default("0.5")
+  memory        String        @default("512Mi")
+
+  // Runtime
+  containerId   String?
+  endpoint      String?
+  internalUrl   String?
+
+  // Metrics
+  totalCalls    Int           @default(0)
+  avgResponse   Float         @default(0)
+  lastCallAt    DateTime?
+
+  // Chain relations
+  chainAgents   ChainAgent[]
+  logs          AgentLog[]
+
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  @@unique([cloudId, name])
+  @@index([cloudId])
+  @@index([status])
+}
+
+model Chain {
+  id          String        @id @default(cuid())
+  name        String
+  description String?
+  status      String        @default("inactive")
+  userId      String
+  user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Config
+  config      String?
+
+  // Metrics
+  executions  Int           @default(0)
+  avgDuration Float         @default(0)
+  lastRunAt   DateTime?
+
+  agents      ChainAgent[]
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  @@unique([userId, name])
+  @@index([userId])
+}
+
+model ChainAgent {
+  id        String   @id @default(cuid())
+  chainId   String
+  chain     Chain    @relation(fields: [chainId], references: [id], onDelete: Cascade)
+  agentId   String
+  agent     Agent    @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  order     Int      @default(0)
+  config    String?
+
+  @@unique([chainId, agentId])
+  @@index([chainId])
+  @@index([agentId])
+}
+
+model AgentLog {
+  id        String   @id @default(cuid())
+  agentId   String
+  agent     Agent    @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  type      String   @default("info")
+  message   String
+  metadata  String?
+  createdAt DateTime @default(now())
+
+  @@index([agentId])
+  @@index([createdAt])
+}
+
+model SecurityEvent {
+  id          String   @id @default(cuid())
+  type        String
+  severity    String   @default("low")
+  source      String?
+  target      String?
+  description String
+  blocked     Boolean  @default(true)
+  metadata    String?
+  createdAt   DateTime @default(now())
+
+  @@index([type])
+  @@index([createdAt])
+}

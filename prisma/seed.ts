@@ -1,0 +1,323 @@
+import { PrismaClient } from '@prisma/client';
+import bcrypt from 'bcryptjs';
+
+const prisma = new PrismaClient();
+
+async function main() {
+  console.log('Seeding database...');
+
+  // Clean existing data
+  await prisma.securityEvent.deleteMany();
+  await prisma.agentLog.deleteMany();
+  await prisma.chainAgent.deleteMany();
+  await prisma.chain.deleteMany();
+  await prisma.agent.deleteMany();
+  await prisma.cloud.deleteMany();
+  await prisma.user.deleteMany();
+
+  // Create demo user
+  const hashedPassword = await bcrypt.hash('Demo123!', 10);
+  const user = await prisma.user.create({
+    data: {
+      email: 'demo@iclaud.ai',
+      name: 'Demo User',
+      password: hashedPassword,
+      credits: 24.50,
+      plan: 'free',
+      apiKey: 'iclaud_sk_demo_12345678',
+    },
+  });
+
+  console.log('Created user:', user.email);
+
+  // Create clouds (regions)
+  const clouds = await Promise.all([
+    prisma.cloud.create({
+      data: {
+        name: 'US East Production',
+        region: 'us-east-1',
+        status: 'active',
+        userId: user.id,
+      },
+    }),
+    prisma.cloud.create({
+      data: {
+        name: 'EU West Staging',
+        region: 'eu-west-1',
+        status: 'active',
+        userId: user.id,
+      },
+    }),
+    prisma.cloud.create({
+      data: {
+        name: 'Asia Pacific',
+        region: 'ap-southeast-1',
+        status: 'active',
+        userId: user.id,
+      },
+    }),
+  ]);
+
+  console.log('Created clouds:', clouds.length);
+
+  // Create agents
+  const agents = await Promise.all([
+    // US East agents
+    prisma.agent.create({
+      data: {
+        name: 'GPT-Summarizer',
+        description: 'Summarizes long documents and articles using GPT-4',
+        status: 'running',
+        runtime: 'python',
+        cloudId: clouds[0].id,
+        endpoint: 'https://gpt-summarizer.iclaud.run',
+        port: 8000,
+        cpu: '0.5',
+        memory: '512Mi',
+        totalCalls: 1247,
+        avgResponse: 1.23,
+        lastCallAt: new Date(),
+      },
+    }),
+    prisma.agent.create({
+      data: {
+        name: 'Code-Reviewer',
+        description: 'Automated code review agent with best practices analysis',
+        status: 'running',
+        runtime: 'nodejs',
+        cloudId: clouds[0].id,
+        endpoint: 'https://code-reviewer.iclaud.run',
+        port: 3000,
+        cpu: '1.0',
+        memory: '1Gi',
+        totalCalls: 856,
+        avgResponse: 2.45,
+        lastCallAt: new Date(Date.now() - 1000 * 60 * 5),
+      },
+    }),
+    prisma.agent.create({
+      data: {
+        name: 'Data-Scraper',
+        description: 'Web scraping agent with anti-bot detection bypass',
+        status: 'running',
+        runtime: 'python',
+        cloudId: clouds[0].id,
+        endpoint: 'https://data-scraper.iclaud.run',
+        port: 8000,
+        cpu: '0.25',
+        memory: '256Mi',
+        totalCalls: 3421,
+        avgResponse: 0.89,
+        lastCallAt: new Date(Date.now() - 1000 * 60 * 2),
+      },
+    }),
+    // EU West agents
+    prisma.agent.create({
+      data: {
+        name: 'Sentiment-Analyzer',
+        description: 'Multi-language sentiment analysis for social media',
+        status: 'running',
+        runtime: 'python',
+        cloudId: clouds[1].id,
+        endpoint: 'https://sentiment-analyzer.iclaud.run',
+        port: 8000,
+        cpu: '0.5',
+        memory: '512Mi',
+        totalCalls: 567,
+        avgResponse: 0.45,
+        lastCallAt: new Date(Date.now() - 1000 * 60 * 10),
+      },
+    }),
+    prisma.agent.create({
+      data: {
+        name: 'Image-Classifier',
+        description: 'Computer vision agent for image classification',
+        status: 'stopped',
+        runtime: 'python',
+        cloudId: clouds[1].id,
+        port: 8000,
+        cpu: '2.0',
+        memory: '4Gi',
+        totalCalls: 234,
+        avgResponse: 3.21,
+      },
+    }),
+    // Asia Pacific agents
+    prisma.agent.create({
+      data: {
+        name: 'Translation-Bot',
+        description: 'Real-time translation agent supporting 50+ languages',
+        status: 'running',
+        runtime: 'python',
+        cloudId: clouds[2].id,
+        endpoint: 'https://translation-bot.iclaud.run',
+        port: 8000,
+        cpu: '1.0',
+        memory: '1Gi',
+        totalCalls: 2103,
+        avgResponse: 0.67,
+        lastCallAt: new Date(Date.now() - 1000 * 30),
+      },
+    }),
+    prisma.agent.create({
+      data: {
+        name: 'Content-Publisher',
+        description: 'Automated content publishing to multiple platforms',
+        status: 'deploying',
+        runtime: 'nodejs',
+        cloudId: clouds[2].id,
+        port: 3000,
+        cpu: '0.5',
+        memory: '512Mi',
+        totalCalls: 0,
+        avgResponse: 0,
+      },
+    }),
+  ]);
+
+  console.log('Created agents:', agents.length);
+
+  // Create chains
+  const chains = await Promise.all([
+    prisma.chain.create({
+      data: {
+        name: 'Content Pipeline',
+        description: 'Scrape → Summarize → Publish workflow',
+        status: 'active',
+        userId: user.id,
+        executions: 342,
+        avgDuration: 4.56,
+        lastRunAt: new Date(Date.now() - 1000 * 60 * 15),
+        agents: {
+          create: [
+            { agentId: agents[2].id, order: 0 }, // Data-Scraper
+            { agentId: agents[0].id, order: 1 }, // GPT-Summarizer
+          ],
+        },
+      },
+    }),
+    prisma.chain.create({
+      data: {
+        name: 'Translation Flow',
+        description: 'Translate → Analyze Sentiment workflow',
+        status: 'active',
+        userId: user.id,
+        executions: 156,
+        avgDuration: 1.89,
+        lastRunAt: new Date(Date.now() - 1000 * 60 * 30),
+        agents: {
+          create: [
+            { agentId: agents[5].id, order: 0 }, // Translation-Bot
+            { agentId: agents[3].id, order: 1 }, // Sentiment-Analyzer
+          ],
+        },
+      },
+    }),
+    prisma.chain.create({
+      data: {
+        name: 'Code Review Pipeline',
+        description: 'Automated PR review workflow',
+        status: 'inactive',
+        userId: user.id,
+        executions: 89,
+        avgDuration: 5.34,
+        agents: {
+          create: [
+            { agentId: agents[1].id, order: 0 }, // Code-Reviewer
+          ],
+        },
+      },
+    }),
+  ]);
+
+  console.log('Created chains:', chains.length);
+
+  // Create security events
+  await prisma.securityEvent.createMany({
+    data: [
+      {
+        type: 'ddos_attempt',
+        severity: 'high',
+        source: '192.168.1.100',
+        target: 'gpt-summarizer.iclaud.run',
+        description: 'DDoS attack blocked - 10,000 requests/sec',
+        blocked: true,
+      },
+      {
+        type: 'brute_force',
+        severity: 'medium',
+        source: '10.0.0.55',
+        target: 'API Auth',
+        description: 'Brute force login attempt - 50 failed attempts',
+        blocked: true,
+      },
+      {
+        type: 'rate_limit',
+        severity: 'low',
+        source: '172.16.0.1',
+        target: 'code-reviewer.iclaud.run',
+        description: 'Rate limit exceeded - throttled to 100 req/min',
+        blocked: false,
+      },
+      {
+        type: 'suspicious_payload',
+        severity: 'high',
+        source: '203.0.113.42',
+        target: 'data-scraper.iclaud.run',
+        description: 'SQL injection attempt detected and blocked',
+        blocked: true,
+      },
+    ],
+  });
+
+  console.log('Created security events');
+
+  // Create agent logs
+  await prisma.agentLog.createMany({
+    data: [
+      {
+        agentId: agents[0].id,
+        type: 'info',
+        message: 'Agent started successfully',
+        createdAt: new Date(Date.now() - 1000 * 60 * 60),
+      },
+      {
+        agentId: agents[0].id,
+        type: 'info',
+        message: 'Processing request from user_123',
+        createdAt: new Date(Date.now() - 1000 * 60 * 5),
+      },
+      {
+        agentId: agents[1].id,
+        type: 'warning',
+        message: 'High memory usage detected: 85%',
+        createdAt: new Date(Date.now() - 1000 * 60 * 30),
+      },
+      {
+        agentId: agents[6].id,
+        type: 'info',
+        message: 'Deployment in progress...',
+        createdAt: new Date(Date.now() - 1000 * 60 * 2),
+      },
+    ],
+  });
+
+  console.log('Created agent logs');
+
+  console.log('');
+  console.log('Database seeded successfully!');
+  console.log('');
+  console.log('Demo credentials:');
+  console.log('   Email:    demo@iclaud.ai');
+  console.log('   Password: Demo123!');
+  console.log('');
+}
+
+main()
+  .catch((e) => {
+    console.error('Error seeding database:', e);
+    process.exit(1);
+  })
+  .finally(async () => {
+    await prisma.$disconnect();
+  });
