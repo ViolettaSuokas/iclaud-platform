@@ -47,9 +47,16 @@ export default async function DashboardPage() {
     }>;
   }> = [];
   let securityEvents: Awaited<ReturnType<typeof prisma.securityEvent.findMany>> = [];
+  let agentLogs: Array<{
+    id: string;
+    type: string;
+    message: string;
+    createdAt: Date;
+    agent: { id: string; name: string };
+  }> = [];
 
   try {
-    [user, cloudsCount, agentsData, chainsData, securityEvents] = await Promise.all([
+    [user, cloudsCount, agentsData, chainsData, securityEvents, agentLogs] = await Promise.all([
       prisma.user.findUnique({
         where: { id: userId },
         select: { credits: true, name: true },
@@ -74,6 +81,12 @@ export default async function DashboardPage() {
         orderBy: { createdAt: 'desc' },
         take: 10,
       }),
+      prisma.agentLog.findMany({
+        where: { agent: { cloud: { userId } } },
+        include: { agent: { select: { id: true, name: true } } },
+        orderBy: { createdAt: 'desc' },
+        take: 20,
+      }),
     ]);
   } catch (error) {
     console.error('Error fetching dashboard data:', error);
@@ -82,10 +95,31 @@ export default async function DashboardPage() {
   const safeAgentsData = agentsData || [];
   const safeChainsData = chainsData || [];
   const safeSecurityEvents = securityEvents || [];
+  const safeAgentLogs = agentLogs || [];
 
   const runningAgents = safeAgentsData.filter((a) => a.status === 'running').length;
   const activeChains = safeChainsData.filter((c) => c.status === 'active').length;
   const blockedThreats = safeSecurityEvents.filter((e) => e.blocked).length;
+
+  // Build activities from real data
+  const activities = [
+    ...safeAgentLogs.map((log) => ({
+      id: log.id,
+      type: 'agent_log' as const,
+      subtype: log.type,
+      message: log.message,
+      timestamp: log.createdAt,
+      agentName: log.agent.name,
+      agentId: log.agent.id,
+    })),
+    ...safeSecurityEvents.map((event) => ({
+      id: event.id,
+      type: 'security_event' as const,
+      subtype: event.type,
+      message: event.description,
+      timestamp: event.createdAt,
+    })),
+  ].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
 
   // Calculate extended metrics
   const totalApiCalls = safeAgentsData.reduce((acc, a) => acc + a.totalCalls, 0);
@@ -147,7 +181,7 @@ export default async function DashboardPage() {
 
         {/* Right Column - Activity & Channels (4 cols) */}
         <div className="lg:col-span-4 space-y-6">
-          <LiveActivity />
+          <LiveActivity activities={activities} />
           <ConnectedChannels />
           <SecurityStatus events={safeSecurityEvents} totalBlocked={blockedThreats} />
         </div>

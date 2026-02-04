@@ -1,107 +1,88 @@
 'use client';
 
-import { useState, useEffect } from 'react';
 import { formatDistanceToNow } from 'date-fns';
 import {
-  Activity,
   CheckCircle,
   XCircle,
-  Clock,
   Shield,
-  Bot,
-  Link2,
-  MessageSquare,
   Zap,
   ArrowUpRight,
+  Info,
+  AlertTriangle,
 } from 'lucide-react';
 import Link from 'next/link';
 
 interface ActivityItem {
   id: string;
-  type: 'agent_call' | 'agent_deployed' | 'agent_error' | 'chain_executed' | 'security_event' | 'message_received';
+  type: 'agent_log' | 'security_event';
+  subtype: string; // info, success, warning, error for logs; ddos, brute_force etc for security
   message: string;
   timestamp: Date;
-  agent?: string;
-  status?: 'success' | 'error' | 'pending';
+  agentName?: string;
+  agentId?: string;
 }
 
 interface LiveActivityProps {
-  initialActivities?: ActivityItem[];
+  activities: ActivityItem[];
 }
 
-const typeConfig: Record<string, { icon: typeof Activity; color: string }> = {
-  agent_call: { icon: Zap, color: '#00ff88' },
-  agent_deployed: { icon: CheckCircle, color: '#00ff88' },
-  agent_error: { icon: XCircle, color: '#ff3b5c' },
-  chain_executed: { icon: Link2, color: '#bf5af2' },
-  security_event: { icon: Shield, color: '#00d4ff' },
-  message_received: { icon: MessageSquare, color: '#ffcc00' },
+const getActivityConfig = (type: string, subtype: string) => {
+  if (type === 'security_event') {
+    return { icon: Shield, color: '#00d4ff' };
+  }
+
+  switch (subtype) {
+    case 'success':
+      return { icon: CheckCircle, color: '#00ff88' };
+    case 'error':
+      return { icon: XCircle, color: '#ff3b5c' };
+    case 'warning':
+      return { icon: AlertTriangle, color: '#ffcc00' };
+    default:
+      return { icon: Zap, color: '#00d4ff' };
+  }
 };
 
-// Simulated live activities for demo
-const demoActivities: ActivityItem[] = [
-  { id: '1', type: 'agent_call', message: 'GPT-Summarizer processed document', timestamp: new Date(), agent: 'GPT-Summarizer', status: 'success' },
-  { id: '2', type: 'chain_executed', message: 'Content Pipeline completed', timestamp: new Date(Date.now() - 30000), status: 'success' },
-  { id: '3', type: 'message_received', message: 'New message from Telegram', timestamp: new Date(Date.now() - 60000) },
-  { id: '4', type: 'security_event', message: 'Rate limit applied to 192.168.1.1', timestamp: new Date(Date.now() - 120000) },
-  { id: '5', type: 'agent_call', message: 'Code-Reviewer analyzed PR #142', timestamp: new Date(Date.now() - 180000), agent: 'Code-Reviewer', status: 'success' },
-  { id: '6', type: 'agent_error', message: 'Data-Scraper timeout on request', timestamp: new Date(Date.now() - 240000), agent: 'Data-Scraper', status: 'error' },
-];
-
-export function LiveActivity({ initialActivities }: LiveActivityProps) {
-  const [activities, setActivities] = useState<ActivityItem[]>(initialActivities || demoActivities);
-  const [isLive, setIsLive] = useState(true);
-
-  // Simulate live updates
-  useEffect(() => {
-    if (!isLive) return;
-
-    const interval = setInterval(() => {
-      const newActivity: ActivityItem = {
-        id: Date.now().toString(),
-        type: ['agent_call', 'chain_executed', 'message_received'][Math.floor(Math.random() * 3)] as ActivityItem['type'],
-        message: [
-          'GPT-Summarizer processed request',
-          'Translation Flow executed',
-          'New webhook received',
-          'Sentiment analysis completed',
-        ][Math.floor(Math.random() * 4)],
-        timestamp: new Date(),
-        status: 'success',
-      };
-
-      setActivities((prev) => [newActivity, ...prev.slice(0, 9)]);
-    }, 8000); // New activity every 8 seconds
-
-    return () => clearInterval(interval);
-  }, [isLive]);
+export function LiveActivity({ activities }: LiveActivityProps) {
+  if (activities.length === 0) {
+    return (
+      <div className="crypto-card rounded-lg p-5">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-sm font-medium text-foreground uppercase tracking-wider">
+            Live Activity
+          </h3>
+        </div>
+        <div className="flex flex-col items-center justify-center py-8 text-center">
+          <Info className="h-8 w-8 text-muted-foreground mb-3" />
+          <p className="text-sm text-muted-foreground">No recent activity</p>
+          <p className="text-xs text-muted-foreground mt-1">
+            Activity will appear when agents start running
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="crypto-card rounded-lg p-5">
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
           <h3 className="text-sm font-medium text-foreground uppercase tracking-wider">
-            Live Activity
+            Recent Activity
           </h3>
-          {isLive && (
-            <span className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-[#00ff88]/10 text-[#00ff88]">
-              <span className="h-1.5 w-1.5 rounded-full bg-[#00ff88] animate-pulse" />
-              <span className="text-[10px] font-medium uppercase">Live</span>
-            </span>
-          )}
+          <span className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-[#00ff88]/10 text-[#00ff88]">
+            <span className="h-1.5 w-1.5 rounded-full bg-[#00ff88] animate-pulse" />
+            <span className="text-[10px] font-medium uppercase">Live</span>
+          </span>
         </div>
-        <Link
-          href="/activity"
-          className="text-xs text-muted-foreground hover:text-[#00ff88] transition-colors flex items-center gap-1"
-        >
-          View all
-          <ArrowUpRight className="h-3 w-3" />
-        </Link>
+        <span className="text-xs text-muted-foreground">
+          {activities.length} events
+        </span>
       </div>
 
       <div className="space-y-1">
-        {activities.slice(0, 8).map((activity, index) => {
-          const config = typeConfig[activity.type] || typeConfig.agent_call;
+        {activities.slice(0, 10).map((activity, index) => {
+          const config = getActivityConfig(activity.type, activity.subtype);
           const Icon = config.icon;
 
           return (
@@ -109,7 +90,7 @@ export function LiveActivity({ initialActivities }: LiveActivityProps) {
               key={activity.id}
               className="flex items-center gap-3 py-2 px-2 rounded-md hover:bg-white/[0.02] transition-colors group"
               style={{
-                opacity: 1 - index * 0.08,
+                opacity: 1 - index * 0.06,
               }}
             >
               <div
@@ -120,38 +101,46 @@ export function LiveActivity({ initialActivities }: LiveActivityProps) {
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-xs text-foreground truncate">
+                  {activity.agentName && (
+                    <Link
+                      href={`/agents/${activity.agentId}`}
+                      className="text-[#00ff88] hover:underline mr-1"
+                    >
+                      {activity.agentName}:
+                    </Link>
+                  )}
                   {activity.message}
                 </p>
               </div>
               <span className="text-[10px] text-muted-foreground font-mono shrink-0">
-                {formatDistanceToNow(activity.timestamp, { addSuffix: false })}
+                {formatDistanceToNow(new Date(activity.timestamp), { addSuffix: false })}
               </span>
             </div>
           );
         })}
       </div>
 
-      {/* Activity Graph */}
+      {/* Activity Summary */}
       <div className="mt-4 pt-4 border-t border-white/[0.06]">
-        <div className="flex items-end justify-between h-12 gap-1">
-          {Array.from({ length: 24 }).map((_, i) => {
-            const height = 20 + Math.random() * 80;
-            const isRecent = i > 20;
-            return (
-              <div
-                key={i}
-                className="flex-1 rounded-sm transition-all hover:opacity-80"
-                style={{
-                  height: `${height}%`,
-                  backgroundColor: isRecent ? '#00ff88' : 'rgba(0,255,136,0.3)',
-                }}
-              />
-            );
-          })}
-        </div>
-        <div className="flex justify-between mt-2 text-[10px] text-muted-foreground">
-          <span>24h ago</span>
-          <span>Now</span>
+        <div className="grid grid-cols-3 gap-2 text-center">
+          <div>
+            <p className="text-sm font-bold text-[#00ff88] font-mono">
+              {activities.filter(a => a.subtype === 'success').length}
+            </p>
+            <p className="text-[10px] text-muted-foreground">Success</p>
+          </div>
+          <div>
+            <p className="text-sm font-bold text-[#ffcc00] font-mono">
+              {activities.filter(a => a.subtype === 'warning').length}
+            </p>
+            <p className="text-[10px] text-muted-foreground">Warnings</p>
+          </div>
+          <div>
+            <p className="text-sm font-bold text-[#ff3b5c] font-mono">
+              {activities.filter(a => a.subtype === 'error' || a.type === 'security_event').length}
+            </p>
+            <p className="text-[10px] text-muted-foreground">Alerts</p>
+          </div>
         </div>
       </div>
     </div>
