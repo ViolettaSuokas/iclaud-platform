@@ -1,36 +1,38 @@
-import { auth } from '@/lib/auth';
 import { NextResponse } from 'next/server';
+import type { NextRequest } from 'next/server';
 
-export default auth((req) => {
-  const isLoggedIn = !!req.auth;
-  const { pathname } = req.nextUrl;
+export function middleware(request: NextRequest) {
+  const { pathname } = request.nextUrl;
 
-  // Skip static files
+  // Always allow these paths
   if (
     pathname.startsWith('/_next') ||
-    pathname.startsWith('/api/auth') ||
+    pathname.startsWith('/api') ||
+    pathname.startsWith('/login') ||
+    pathname.startsWith('/register') ||
+    pathname === '/' ||
+    pathname === '/pricing' ||
     pathname.includes('.')
   ) {
     return NextResponse.next();
   }
 
-  // Auth pages - redirect to dashboard if logged in
-  if (isLoggedIn && (pathname === '/login' || pathname === '/register')) {
-    return NextResponse.redirect(new URL('/dashboard', req.url));
-  }
+  // Check for session cookie
+  const sessionCookie = request.cookies.get('authjs.session-token') ||
+                        request.cookies.get('__Secure-authjs.session-token');
 
-  // Protected routes - redirect to login if not logged in
+  // Protected routes need session
   const protectedPaths = ['/dashboard', '/clouds', '/agents', '/chains', '/security', '/marketplace', '/api-keys', '/settings', '/billing', '/activity'];
   const isProtected = protectedPaths.some(p => pathname.startsWith(p));
 
-  if (!isLoggedIn && isProtected) {
-    const loginUrl = new URL('/login', req.url);
+  if (isProtected && !sessionCookie) {
+    const loginUrl = new URL('/login', request.url);
     loginUrl.searchParams.set('callbackUrl', pathname);
     return NextResponse.redirect(loginUrl);
   }
 
   return NextResponse.next();
-});
+}
 
 export const config = {
   matcher: ['/((?!_next/static|_next/image|favicon.ico).*)'],
