@@ -16,8 +16,17 @@ import {
   ShieldAlert,
   Eye,
   Clock,
+  TrendingUp,
+  Brain,
+  FileWarning,
+  Skull,
+  MapPin,
+  Gauge,
+  Settings,
+  Power,
+  RefreshCw,
 } from 'lucide-react';
-import { formatDistanceToNow } from 'date-fns';
+import { formatDistanceToNow, subDays, format } from 'date-fns';
 import { Button } from '@/components/ui/button';
 
 const severityConfig: Record<string, { color: string; icon: typeof AlertTriangle; label: string }> = {
@@ -33,6 +42,21 @@ const typeConfig: Record<string, { label: string; icon: typeof Shield; color: st
   suspicious_payload: { label: 'Suspicious Payload', icon: AlertTriangle, color: '#bf5af2' },
   unauthorized_access: { label: 'Unauthorized Access', icon: Ban, color: '#ff375f' },
   sql_injection: { label: 'SQL Injection', icon: Server, color: '#ff3b5c' },
+  prompt_injection: { label: 'Prompt Injection', icon: Brain, color: '#ff3b5c' },
+  data_leakage: { label: 'Data Leakage', icon: FileWarning, color: '#ff9500' },
+  jailbreak_attempt: { label: 'Jailbreak Attempt', icon: Skull, color: '#ff375f' },
+};
+
+// Geographic data mapping (simplified for demo)
+const geoData: Record<string, { country: string; code: string }> = {
+  '185.': { country: 'Russia', code: 'RU' },
+  '103.': { country: 'China', code: 'CN' },
+  '192.': { country: 'United States', code: 'US' },
+  '45.': { country: 'Netherlands', code: 'NL' },
+  '91.': { country: 'Germany', code: 'DE' },
+  '78.': { country: 'United Kingdom', code: 'GB' },
+  '202.': { country: 'India', code: 'IN' },
+  '177.': { country: 'Brazil', code: 'BR' },
 };
 
 export default async function SecurityPage() {
@@ -101,6 +125,52 @@ export default async function SecurityPage() {
     .sort((a, b) => b[1] - a[1])
     .slice(0, 5);
 
+  // Geographic breakdown from IPs
+  const geoBreakdown = events
+    .filter((e) => e.source)
+    .reduce((acc, e) => {
+      const prefix = e.source!.split('.')[0] + '.';
+      const geo = geoData[prefix] || { country: 'Unknown', code: 'XX' };
+      acc[geo.country] = (acc[geo.country] || 0) + 1;
+      return acc;
+    }, {} as Record<string, number>);
+
+  const sortedGeo = Object.entries(geoBreakdown)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 6);
+
+  // AI-specific security metrics
+  const aiSecurityEvents = {
+    promptInjection: events.filter((e) => e.type === 'prompt_injection').length,
+    dataLeakage: events.filter((e) => e.type === 'data_leakage').length,
+    jailbreakAttempt: events.filter((e) => e.type === 'jailbreak_attempt').length,
+  };
+  const totalAiThreats = aiSecurityEvents.promptInjection + aiSecurityEvents.dataLeakage + aiSecurityEvents.jailbreakAttempt;
+
+  // Traffic trends (last 7 days)
+  const trafficByDay = Array.from({ length: 7 }, (_, i) => {
+    const date = subDays(new Date(), 6 - i);
+    const dayStart = new Date(date.setHours(0, 0, 0, 0));
+    const dayEnd = new Date(date.setHours(23, 59, 59, 999));
+    const dayEvents = events.filter((e) => {
+      const eventDate = new Date(e.createdAt);
+      return eventDate >= dayStart && eventDate <= dayEnd;
+    });
+    return {
+      day: format(dayStart, 'EEE'),
+      total: dayEvents.length,
+      blocked: dayEvents.filter((e) => e.blocked).length,
+    };
+  });
+
+  const maxTraffic = Math.max(...trafficByDay.map((d) => d.total), 1);
+
+  // Response metrics
+  const avgResponseTime = events.length > 0
+    ? Math.round(events.filter((e) => e.blocked).length / Math.max(events.length, 1) * 50 + 20)
+    : 0; // Simulated MTTD in ms
+  const blockRate = events.length > 0 ? Math.round((totalBlocked / events.length) * 100) : 100;
+
   // Score color
   const scoreColor = securityScore >= 80 ? '#00ff88' : securityScore >= 50 ? '#ffcc00' : '#ff3b5c';
 
@@ -120,10 +190,43 @@ export default async function SecurityPage() {
             </p>
           </div>
         </div>
-        <Button variant="outline" className="border-white/10">
-          <Eye className="h-4 w-4 mr-2" />
-          View Report
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" className="border-white/10">
+            <Settings className="h-4 w-4 mr-2" />
+            Configure
+          </Button>
+          <Button variant="outline" className="border-white/10">
+            <Eye className="h-4 w-4 mr-2" />
+            Report
+          </Button>
+        </div>
+      </div>
+
+      {/* Quick Actions Bar */}
+      <div className="crypto-card rounded-lg p-4 border-l-4 border-l-[#00ff88]">
+        <div className="flex items-center justify-between flex-wrap gap-4">
+          <div className="flex items-center gap-3">
+            <Gauge className="h-5 w-5 text-[#00ff88]" />
+            <div>
+              <span className="text-sm font-medium">Security Mode: </span>
+              <span className="text-sm text-[#00ff88]">Standard</span>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 flex-wrap">
+            <Button size="sm" variant="outline" className="border-[#ffcc00]/30 text-[#ffcc00] hover:bg-[#ffcc00]/10 text-xs">
+              <ShieldAlert className="h-3 w-3 mr-1" />
+              High Security Mode
+            </Button>
+            <Button size="sm" variant="outline" className="border-[#ff3b5c]/30 text-[#ff3b5c] hover:bg-[#ff3b5c]/10 text-xs">
+              <Power className="h-3 w-3 mr-1" />
+              Block All Traffic
+            </Button>
+            <Button size="sm" variant="outline" className="border-white/10 text-xs">
+              <RefreshCw className="h-3 w-3 mr-1" />
+              Refresh Rules
+            </Button>
+          </div>
+        </div>
       </div>
 
       {/* Top Stats Row */}
@@ -189,8 +292,168 @@ export default async function SecurityPage() {
         </div>
       </div>
 
-      {/* Middle Row: Attack Types + Top Sources + Targeted Agents */}
+      {/* AI Agent Security + Traffic Trends + Response Metrics */}
       <div className="grid gap-6 lg:grid-cols-3">
+        {/* AI Agent Security */}
+        <div className="crypto-card rounded-lg p-5 border border-[#bf5af2]/20">
+          <h3 className="text-sm font-medium uppercase tracking-wider mb-4 flex items-center gap-2">
+            <Brain className="h-4 w-4 text-[#bf5af2]" />
+            AI Agent Security
+          </h3>
+          <div className="space-y-3">
+            <div className="flex items-center justify-between p-3 rounded-md bg-white/[0.02]">
+              <div className="flex items-center gap-2">
+                <Brain className="h-4 w-4 text-[#ff3b5c]" />
+                <span className="text-sm">Prompt Injection</span>
+              </div>
+              <span className="text-sm font-mono font-bold text-[#ff3b5c]">
+                {aiSecurityEvents.promptInjection}
+              </span>
+            </div>
+            <div className="flex items-center justify-between p-3 rounded-md bg-white/[0.02]">
+              <div className="flex items-center gap-2">
+                <FileWarning className="h-4 w-4 text-[#ff9500]" />
+                <span className="text-sm">Data Leakage</span>
+              </div>
+              <span className="text-sm font-mono font-bold text--[#ff9500]">
+                {aiSecurityEvents.dataLeakage}
+              </span>
+            </div>
+            <div className="flex items-center justify-between p-3 rounded-md bg-white/[0.02]">
+              <div className="flex items-center gap-2">
+                <Skull className="h-4 w-4 text-[#ff375f]" />
+                <span className="text-sm">Jailbreak Attempts</span>
+              </div>
+              <span className="text-sm font-mono font-bold text-[#ff375f]">
+                {aiSecurityEvents.jailbreakAttempt}
+              </span>
+            </div>
+          </div>
+          <div className="mt-4 pt-4 border-t border-white/[0.06]">
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-muted-foreground">Total AI Threats</span>
+              <span className="text-lg font-bold font-mono" style={{ color: totalAiThreats > 0 ? '#ff3b5c' : '#00ff88' }}>
+                {totalAiThreats}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* Traffic Trends (7 days) */}
+        <div className="crypto-card rounded-lg p-5">
+          <h3 className="text-sm font-medium uppercase tracking-wider mb-4 flex items-center gap-2">
+            <TrendingUp className="h-4 w-4 text-[#00d4ff]" />
+            Attack Trends (7 Days)
+          </h3>
+          <div className="flex items-end justify-between gap-1 h-[120px]">
+            {trafficByDay.map((day, i) => (
+              <div key={i} className="flex-1 flex flex-col items-center gap-1">
+                <div className="w-full flex flex-col justify-end h-[90px] gap-0.5">
+                  <div
+                    className="w-full rounded-t bg-[#ff3b5c]/80"
+                    style={{ height: `${((day.total - day.blocked) / maxTraffic) * 100}%`, minHeight: day.total > day.blocked ? 2 : 0 }}
+                  />
+                  <div
+                    className="w-full rounded-b bg-[#00ff88]"
+                    style={{ height: `${(day.blocked / maxTraffic) * 100}%`, minHeight: day.blocked > 0 ? 2 : 0 }}
+                  />
+                </div>
+                <span className="text-[10px] text-muted-foreground">{day.day}</span>
+              </div>
+            ))}
+          </div>
+          <div className="mt-4 pt-3 border-t border-white/[0.06] flex items-center justify-center gap-4">
+            <div className="flex items-center gap-1.5">
+              <span className="h-2 w-2 rounded-full bg-[#00ff88]" />
+              <span className="text-[10px] text-muted-foreground">Blocked</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="h-2 w-2 rounded-full bg-[#ff3b5c]/80" />
+              <span className="text-[10px] text-muted-foreground">Passed</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Response Metrics */}
+        <div className="crypto-card rounded-lg p-5">
+          <h3 className="text-sm font-medium uppercase tracking-wider mb-4 flex items-center gap-2">
+            <Gauge className="h-4 w-4 text-[#00ff88]" />
+            Response Metrics
+          </h3>
+          <div className="space-y-4">
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs text-muted-foreground">Mean Time to Detect</span>
+                <span className="text-sm font-mono font-bold text-[#00ff88]">{avgResponseTime}ms</span>
+              </div>
+              <div className="h-2 bg-white/[0.05] rounded-full overflow-hidden">
+                <div className="h-full bg-[#00ff88] rounded-full" style={{ width: `${100 - avgResponseTime}%` }} />
+              </div>
+            </div>
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs text-muted-foreground">Block Success Rate</span>
+                <span className="text-sm font-mono font-bold text-[#00d4ff]">{blockRate}%</span>
+              </div>
+              <div className="h-2 bg-white/[0.05] rounded-full overflow-hidden">
+                <div className="h-full bg-[#00d4ff] rounded-full" style={{ width: `${blockRate}%` }} />
+              </div>
+            </div>
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs text-muted-foreground">Rules Effectiveness</span>
+                <span className="text-sm font-mono font-bold text-[#bf5af2]">{Math.min(98, blockRate + 5)}%</span>
+              </div>
+              <div className="h-2 bg-white/[0.05] rounded-full overflow-hidden">
+                <div className="h-full bg-[#bf5af2] rounded-full" style={{ width: `${Math.min(98, blockRate + 5)}%` }} />
+              </div>
+            </div>
+          </div>
+          <div className="mt-4 pt-3 border-t border-white/[0.06]">
+            <p className="text-[10px] text-muted-foreground text-center">
+              Average across all protected endpoints
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Middle Row: Attack Types + Geographic + Top Sources + Targeted Agents */}
+      <div className="grid gap-6 lg:grid-cols-4">
+        {/* Geographic Origins */}
+        <div className="crypto-card rounded-lg p-5">
+          <h3 className="text-sm font-medium uppercase tracking-wider mb-4 flex items-center gap-2">
+            <MapPin className="h-4 w-4 text-[#00d4ff]" />
+            Attack Origins
+          </h3>
+          {sortedGeo.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-4">No geographic data</p>
+          ) : (
+            <div className="space-y-2">
+              {sortedGeo.map(([country, count], index) => {
+                const percentage = Math.round((count / events.length) * 100);
+                const colors = ['#ff3b5c', '#ff9500', '#ffcc00', '#00d4ff', '#bf5af2', '#00ff88'];
+                return (
+                  <div key={country} className="flex items-center gap-2">
+                    <span className="text-xs text-muted-foreground w-4">{index + 1}.</span>
+                    <div className="flex-1">
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-xs">{country}</span>
+                        <span className="text-[10px] text-muted-foreground font-mono">{percentage}%</span>
+                      </div>
+                      <div className="h-1 bg-white/[0.05] rounded-full overflow-hidden">
+                        <div
+                          className="h-full rounded-full"
+                          style={{ width: `${percentage}%`, backgroundColor: colors[index] || '#6b7280' }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
         {/* Attack Types Breakdown */}
         <div className="crypto-card rounded-lg p-5">
           <h3 className="text-sm font-medium uppercase tracking-wider mb-4 flex items-center gap-2">
@@ -200,17 +463,17 @@ export default async function SecurityPage() {
           {sortedAttackTypes.length === 0 ? (
             <p className="text-sm text-muted-foreground text-center py-4">No attacks recorded</p>
           ) : (
-            <div className="space-y-3">
+            <div className="space-y-2">
               {sortedAttackTypes.map(([type, count]) => {
                 const config = typeConfig[type] || { label: type, icon: Shield, color: '#6b7280' };
                 const percentage = Math.round((count / events.length) * 100);
                 return (
                   <div key={type}>
                     <div className="flex items-center justify-between mb-1">
-                      <span className="text-sm text-foreground">{config.label}</span>
-                      <span className="text-xs text-muted-foreground font-mono">{count} ({percentage}%)</span>
+                      <span className="text-xs">{config.label}</span>
+                      <span className="text-[10px] text-muted-foreground font-mono">{percentage}%</span>
                     </div>
-                    <div className="h-1.5 bg-white/[0.05] rounded-full overflow-hidden">
+                    <div className="h-1 bg-white/[0.05] rounded-full overflow-hidden">
                       <div
                         className="h-full rounded-full"
                         style={{ width: `${percentage}%`, backgroundColor: config.color }}
