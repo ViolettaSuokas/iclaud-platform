@@ -272,20 +272,87 @@ async function main() {
 
   console.log('Created security events');
 
-  // Create agent logs
+  // Create agent logs - realistic logs for demo
   await prisma.agentLog.createMany({
     data: [
+      // GPT-Summarizer logs
       {
         agentId: agents[0].id,
-        type: 'info',
+        type: 'success',
         message: 'Agent started successfully',
         createdAt: new Date(Date.now() - 1000 * 60 * 60),
       },
       {
         agentId: agents[0].id,
         type: 'info',
-        message: 'Processing request from user_123',
+        message: 'Loaded model: gpt-4-turbo',
+        createdAt: new Date(Date.now() - 1000 * 60 * 59),
+      },
+      {
+        agentId: agents[0].id,
+        type: 'info',
+        message: 'Processing request: summarize 15-page PDF document',
+        metadata: JSON.stringify({ tokens: 4521, estimatedCost: 0.045 }),
+        createdAt: new Date(Date.now() - 1000 * 60 * 30),
+      },
+      {
+        agentId: agents[0].id,
+        type: 'success',
+        message: 'Request completed in 1.23s',
+        metadata: JSON.stringify({ inputTokens: 4521, outputTokens: 856 }),
+        createdAt: new Date(Date.now() - 1000 * 60 * 29),
+      },
+      {
+        agentId: agents[0].id,
+        type: 'info',
+        message: 'Processing request: summarize news article',
+        createdAt: new Date(Date.now() - 1000 * 60 * 15),
+      },
+      {
+        agentId: agents[0].id,
+        type: 'success',
+        message: 'Request completed in 0.89s',
+        createdAt: new Date(Date.now() - 1000 * 60 * 14),
+      },
+      {
+        agentId: agents[0].id,
+        type: 'info',
+        message: 'Health check passed',
         createdAt: new Date(Date.now() - 1000 * 60 * 5),
+      },
+
+      // Code-Reviewer logs
+      {
+        agentId: agents[1].id,
+        type: 'success',
+        message: 'Agent started successfully',
+        createdAt: new Date(Date.now() - 1000 * 60 * 120),
+      },
+      {
+        agentId: agents[1].id,
+        type: 'info',
+        message: 'Connected to GitHub API',
+        createdAt: new Date(Date.now() - 1000 * 60 * 119),
+      },
+      {
+        agentId: agents[1].id,
+        type: 'info',
+        message: 'Reviewing PR #142: "Add user authentication"',
+        metadata: JSON.stringify({ repo: 'myapp/backend', files: 12 }),
+        createdAt: new Date(Date.now() - 1000 * 60 * 45),
+      },
+      {
+        agentId: agents[1].id,
+        type: 'warning',
+        message: 'Found 3 potential security issues in auth.ts',
+        metadata: JSON.stringify({ issues: ['SQL injection risk', 'Weak password policy', 'Missing rate limit'] }),
+        createdAt: new Date(Date.now() - 1000 * 60 * 44),
+      },
+      {
+        agentId: agents[1].id,
+        type: 'success',
+        message: 'Review completed, posted 5 comments',
+        createdAt: new Date(Date.now() - 1000 * 60 * 43),
       },
       {
         agentId: agents[1].id,
@@ -293,10 +360,58 @@ async function main() {
         message: 'High memory usage detected: 85%',
         createdAt: new Date(Date.now() - 1000 * 60 * 30),
       },
+
+      // Data-Scraper logs
+      {
+        agentId: agents[2].id,
+        type: 'success',
+        message: 'Agent started successfully',
+        createdAt: new Date(Date.now() - 1000 * 60 * 180),
+      },
+      {
+        agentId: agents[2].id,
+        type: 'info',
+        message: 'Scraping job started: e-commerce prices',
+        metadata: JSON.stringify({ urls: 150, proxy: 'rotating' }),
+        createdAt: new Date(Date.now() - 1000 * 60 * 20),
+      },
+      {
+        agentId: agents[2].id,
+        type: 'warning',
+        message: 'Rate limited by target site, backing off',
+        createdAt: new Date(Date.now() - 1000 * 60 * 18),
+      },
+      {
+        agentId: agents[2].id,
+        type: 'success',
+        message: 'Scraping completed: 147/150 URLs processed',
+        metadata: JSON.stringify({ success: 147, failed: 3, duration: '45s' }),
+        createdAt: new Date(Date.now() - 1000 * 60 * 10),
+      },
+
+      // Deploying agent logs
       {
         agentId: agents[6].id,
         type: 'info',
-        message: 'Deployment in progress...',
+        message: 'Deployment started',
+        createdAt: new Date(Date.now() - 1000 * 60 * 5),
+      },
+      {
+        agentId: agents[6].id,
+        type: 'info',
+        message: 'Building container image...',
+        createdAt: new Date(Date.now() - 1000 * 60 * 4),
+      },
+      {
+        agentId: agents[6].id,
+        type: 'info',
+        message: 'Installing dependencies: npm install',
+        createdAt: new Date(Date.now() - 1000 * 60 * 3),
+      },
+      {
+        agentId: agents[6].id,
+        type: 'info',
+        message: 'Running health checks...',
         createdAt: new Date(Date.now() - 1000 * 60 * 2),
       },
     ],
